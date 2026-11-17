@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>💣 傳炸彈大冒險！Pass the Bomb</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Canvas Confetti for Celebration / Explosion effects -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Google Fonts for playful text -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Fredoka', 'Noto Sans TC', sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Screen shake animation on explosion */
+    @keyframes screenShake {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      10% { transform: translate(-8px, -10px) rotate(-2deg); }
+      20% { transform: translate(10px, 8px) rotate(2deg); }
+      30% { transform: translate(-10px, 6px) rotate(-1.5deg); }
+      40% { transform: translate(8px, -8px) rotate(1.5deg); }
+      50% { transform: translate(-6px, 8px) rotate(-1deg); }
+      60% { transform: translate(6px, -6px) rotate(1deg); }
+      70% { transform: translate(-4px, 4px) rotate(-0.5deg); }
+      80% { transform: translate(4px, -4px) rotate(0.5deg); }
+      90% { transform: translate(-2px, 2px) rotate(0deg); }
+    }
+
+    .shake-active {
+      animation: screenShake 0.65s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    /* Pulsing beat for when bomb is active */
+    @keyframes heartbeat {
+      0% { transform: scale(1); }
+      15% { transform: scale(1.1); }
+      30% { transform: scale(1); }
+      45% { transform: scale(1.18); }
+      60% { transform: scale(1); }
+      100% { transform: scale(1); }
+    }
+
+    .pulse-rhythm {
+      animation: heartbeat 0.8s infinite ease-in-out;
+    }
+
+    /* Fuse spark animation */
+    @keyframes sparkFlicker {
+      0%, 100% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 10px #ffea00); }
+      50% { transform: scale(1.35) rotate(18deg); filter: drop-shadow(0 0 18px #ff3b30); }
+    }
+
+    .fuse-spark {
+      animation: sparkFlicker 0.15s infinite alternate;
+    }
+
+    /* Cartoon Cloud & Pattern Background */
+    .bg-pattern {
+      background-color: #fef08a;
+      background-image: radial-gradient(#fde047 2px, transparent 2px), radial-gradient(#facc15 2px, #fef08a 2px);
+      background-size: 36px 36px;
+      background-position: 0 0, 18px 18px;
+    }
+  </style>
+</head>
+<body class="bg-pattern min-h-screen flex flex-col justify-between items-center text-slate-800 p-4 transition-colors duration-500 overflow-x-hidden" id="mainContainer">
+
+  <!-- Header / Navigation Bar -->
+  <header class="w-full max-w-xl mx-auto flex items-center justify-between py-2">
+    <div class="flex items-center space-x-2">
+      <span class="text-3xl">🔥</span>
+      <div>
+        <h1 class="text-2xl font-black text-rose-600 tracking-wide drop-shadow-sm">傳波傳炸彈！</h1>
+        <p class="text-xs font-bold text-amber-800">Pass the Bomb Kids Game</p>
+      </div>
+    </div>
+    <!-- Sound Mute & Settings Buttons -->
+    <div class="flex space-x-2">
+      <button id="soundToggleBtn" class="bg-white/90 hover:bg-white text-slate-700 shadow-md p-2.5 rounded-2xl active:scale-95 transition-all text-xl" title="靜音切換">
+        🔊
+      </button>
+      <button id="rulesBtn" class="bg-white/90 hover:bg-white text-slate-700 shadow-md p-2.5 rounded-2xl active:scale-95 transition-all text-xl" title="遊戲玩法">
+        ❓
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Game Stage -->
+  <main class="w-full max-w-md mx-auto flex-1 flex flex-col justify-center items-center my-3 relative">
+    
+    <!-- Cartoon Bomb / Ball Graphics Area -->
+    <div class="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center">
+      
+      <!-- Bomb Visual (Active / Idle) -->
+      <div id="bombVisual" class="relative transition-transform duration-300">
+        <!-- Burning Fuse Spark (Only in playing state) -->
+        <div id="fuseContainer" class="hidden absolute -top-10 right-10 z-20">
+          <svg class="w-16 h-16 fuse-spark" viewBox="0 0 100 100" fill="none">
+            <path d="M50 85 C 45 65, 30 50, 45 30 C 50 20, 60 15, 65 5" stroke="#92400e" stroke-width="6" stroke-linecap="round" fill="none"/>
+            <circle cx="65" cy="5" r="9" fill="#facc15" />
+            <polygon points="65,0 72,12 85,15 75,24 77,37 65,30 53,37 55,24 45,15 58,12" fill="#ef4444" />
+            <circle cx="65" cy="5" r="4" fill="#ffffff" />
+          </svg>
+        </div>
+
+        <!-- Bomb Base Body -->
+        <div id="bombSphere" class="w-48 h-48 sm:w-56 sm:h-56 bg-gradient-to-tr from-slate-900 via-slate-800 to-slate-700 rounded-full shadow-2xl relative flex items-center justify-center border-4 border-slate-950">
+          <!-- Glossy 3D Highlight reflection -->
+          <div class="absolute top-4 left-6 w-12 h-6 bg-white/30 rounded-full transform -rotate-45 blur-[1px]"></div>
+          
+          <!-- Cute Friendly Cartoon Face -->
+          <div id="bombFace" class="flex flex-col items-center">
+            <!-- Eyes -->
+            <div class="flex space-x-8 mb-2">
+              <div id="leftEye" class="w-5 h-7 bg-white rounded-full relative flex items-center justify-center">
+                <div class="w-3 h-4 bg-slate-900 rounded-full relative">
+                  <div class="w-1 h-1 bg-white rounded-full absolute top-0.5 right-0.5"></div>
+                </div>
+              </div>
+              <div id="rightEye" class="w-5 h-7 bg-white rounded-full relative flex items-center justify-center">
+                <div class="w-3 h-4 bg-slate-900 rounded-full relative">
+                  <div class="w-1 h-1 bg-white rounded-full absolute top-0.5 right-0.5"></div>
+                </div>
+              </div>
+            </div>
+            <!-- Mouth -->
+            <div id="mouth" class="w-6 h-3 border-b-4 border-white rounded-full transition-all duration-200"></div>
+            <!-- Rosy Cheeks -->
+            <div class="flex space-x-12 -mt-2">
+              <div class="w-4 h-2 bg-pink-500/70 rounded-full blur-[0.5px]"></div>
+              <div class="w-4 h-2 bg-pink-500/70 rounded-full blur-[0.5px]"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bomb Cap/Neck -->
+        <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 w-14 h-6 bg-slate-600 rounded-md border-2 border-slate-900 z-10 shadow-sm"></div>
+      </div>
+
+      <!-- Dramatic Exploded SVG (Hidden by default) -->
+      <div id="explosionVisual" class="hidden flex-col items-center justify-center animate-bounce">
+        <div class="text-8xl select-none filter drop-shadow-lg">💥</div>
+        <p class="text-3xl font-black text-red-600 drop-shadow mt-2 tracking-wider">BOOM！！</p>
+      </div>
+    </div>
+
+    <!-- Status Message Banner -->
+    <div class="mt-4 text-center px-4 w-full">
+      <div id="statusBadge" class="inline-block px-5 py-2 rounded-full font-black text-lg sm:text-xl shadow-md bg-white text-slate-800 border-2 border-amber-300">
+        準備好未？點擊開始傳波！
+      </div>
+      <p id="subHint" class="text-xs sm:text-sm font-bold text-amber-900/80 mt-2">
+        ⏰ 倒數時間隨機保密！音樂一停，炸彈就爆！
+      </p>
+    </div>
+
+    <!-- Random Penalty Card (Revealed after explosion) -->
+    <div id="penaltyCard" class="hidden w-full mt-4 bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-xl border-4 border-dashed border-rose-400 text-center animate-pulse">
+      <span class="text-xs font-black uppercase tracking-wider text-rose-500 bg-rose-100 px-3 py-1 rounded-full">
+        🎯 邊個拎住個波？搞笑小懲罰！
+      </span>
+      <h3 id="penaltyText" class="text-xl sm:text-2xl font-black text-slate-800 mt-2.5 mb-1">
+        模仿一種得意動物叫聲（例如狗仔、貓咪）
+      </h3>
+      <button id="rerollPenaltyBtn" class="text-xs text-rose-600 hover:text-rose-800 font-bold underline mt-1.5 cursor-pointer">
+        🎲 換另一個懲罰
+      </button>
+    </div>
+
+  </main>
+
+  <!-- Control Panel & Action Buttons -->
+  <footer class="w-full max-w-md mx-auto space-y-3 pb-2">
+    
+    <!-- Time Preset Buttons (Disabled during active game) -->
+    <div id="presetControls" class="bg-white/80 backdrop-blur-sm p-3 rounded-2xl shadow-sm border border-amber-200">
+      <div class="flex justify-between items-center text-xs font-bold text-slate-600 mb-2 px-1">
+        <span>⏱️ 隨機時間模式：</span>
+        <span id="presetLabel" class="text-rose-600 font-extrabold">一般 (15 - 35秒)</span>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <button data-mode="quick" class="mode-btn bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold py-2 rounded-xl text-xs sm:text-sm transition-all border-2 border-transparent">
+          ⚡ 刺激快 (8-18秒)
+        </button>
+        <button data-mode="normal" class="mode-btn bg-amber-500 text-white font-black py-2 rounded-xl text-xs sm:text-sm shadow transition-all border-2 border-amber-600">
+          🎯 一般 (15-35秒)
+        </button>
+        <button data-mode="long" class="mode-btn bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold py-2 rounded-xl text-xs sm:text-sm transition-all border-2 border-transparent">
+          🐢 悠閒長 (30-55秒)
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Action Button -->
+    <div class="flex space-x-3">
+      <button id="primaryBtn" class="flex-1 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 active:scale-95 text-white font-black text-xl sm:text-2xl py-4 rounded-2xl shadow-lg border-b-4 border-green-800 transition-all flex items-center justify-center space-x-2">
+        <span>🚀 開始遊戲！</span>
+      </button>
+      <button id="resetBtn" class="hidden bg-slate-200 hover:bg-slate-300 active:scale-95 text-slate-700 font-bold px-5 py-4 rounded-2xl shadow-md transition-all text-lg">
+        🔄 重設
+      </button>
+    </div>
+  </footer>
+
+  <!-- Rules & Help Modal -->
+  <div id="rulesModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border-4 border-amber-400">
+      <div class="text-center mb-3">
+        <span class="text-4xl">🎉</span>
+        <h2 class="text-2xl font-black text-slate-800 mt-1">傳波 / 傳炸彈玩法</h2>
+      </div>
+      <ol class="space-y-2.5 text-sm font-bold text-slate-600 list-decimal list-inside text-left">
+        <li>大家圍埋成一個圈，攞一個波（或者公仔）當做「炸彈」。</li>
+        <li>點擊 <span class="text-emerald-600 font-black">開始遊戲</span>，電話會隨機倒數並播放歡樂音樂。</li>
+        <li>大家要趁音樂響緊，快手將個波傳俾下一個人！</li>
+        <li>音樂突然停低並發出「BOOM 💥」巨響嘅一瞬間，<span class="text-rose-600 font-black">手上揸住個波嘅玩家就輸啦！</span></li>
+        <li>輸咗嘅朋友可以抽一張搞笑小懲罰做表演！</li>
+      </ol>
+      <button id="closeRulesBtn" class="w-full mt-5 bg-amber-400 hover:bg-amber-500 active:scale-95 text-amber-950 font-black py-3 rounded-xl shadow-md text-base transition-all">
+        明白！即刻玩！
+      </button>
+    </div>
+  </div>
+
+  <!-- Audio & Game Engine Logic -->
+  <script>
+    // --- 1. Sound Engine (Synthesized with Web Audio API - Zero External Dependencies) ---
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+        this.isMuted = false;
+        this.musicTimer = null;
+        this.tempo = 240; // BPM
+        this.noteIndex = 0;
+        this.tuneNotes = [
+          261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 392.00, 329.63,
+          261.63, 329.63, 392.00, 523.25, 493.88, 392.00, 440.00, 349.23
+        ];
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      // Short playful cartoon bleep/tick
+      playTick(pitchMod = 1) {
+        if (this.isMuted || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          
+          const freq = (this.tuneNotes[this.noteIndex % this.tuneNotes.length] || 350) * pitchMod;
+          this.noteIndex++;
+          
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(freq * 0.7, this.ctx.currentTime + 0.08);
+
+          gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.09);
+        } catch(e) {
+          console.error(e);
+        }
+      }
+
+      // Start continuous looping playful countdown music
+      startMusic(speedUpCallback) {
+        this.stopMusic();
+        this.tempo = 240; // ms interval
+        let step = 0;
+
+        const loop = () => {
+          this.playTick();
+          step++;
+
+          // Periodically speed up tempo slightly to build tension
+          if (step % 12 === 0 && this.tempo > 90) {
+            this.tempo -= 15;
+            if (speedUpCallback) speedUpCallback(this.tempo);
+          }
+
+          this.musicTimer = setTimeout(loop, this.tempo);
+        };
+
+        loop();
+      }
+
+      stopMusic() {
+        if (this.musicTimer) {
+          clearTimeout(this.musicTimer);
+          this.musicTimer = null;
+        }
+      }
+
+      // Powerful cartoon explosion sound
+      playExplosion() {
+        if (this.isMuted || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          
+          // 1. Noise buffer for explosion blast
+          const bufferSize = this.ctx.sampleRate * 1.5;
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+
+          // Lowpass filter to make it sound bassy and deep
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(1000, now);
+          filter.frequency.exponentialRampToValueAtTime(80, now + 1.2);
+
+          const noiseGain = this.ctx.createGain();
+          noiseGain.gain.setValueAtTime(0.7, now);
+          noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 1.3);
+
+          noise.connect(filter);
+          filter.connect(noiseGain);
+          noiseGain.connect(this.ctx.destination);
+
+          noise.start(now);
+          noise.stop(now + 1.4);
+
+          // 2. Low sine wave rumble
+          const osc = this.ctx.createOscillator();
+          const oscGain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(160, now);
+          osc.frequency.exponentialRampToValueAtTime(30, now + 0.8);
+
+          oscGain.gain.setValueAtTime(0.5, now);
+          oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.9);
+
+          osc.connect(oscGain);
+          oscGain.connect(this.ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.9);
+
+          // 3. Silly cartoon whistle down at end
+          const cartoonWhistle = this.ctx.createOscillator();
+          const whistleGain = this.ctx.createGain();
+          cartoonWhistle.type = 'sine';
+          cartoonWhistle.frequency.setValueAtTime(500, now + 0.3);
+          cartoonWhistle.frequency.exponentialRampToValueAtTime(70, now + 0.9);
+
+          whistleGain.gain.setValueAtTime(0.01, now);
+          whistleGain.gain.setValueAtTime(0.2, now + 0.3);
+          whistleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+
+          cartoonWhistle.connect(whistleGain);
+          whistleGain.connect(this.ctx.destination);
+
+          cartoonWhistle.start(now + 0.3);
+          cartoonWhistle.stop(now + 1.0);
+
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      // Button click chirp
+      playChirp() {
+        if (this.isMuted || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.frequency.setValueAtTime(520, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.08);
+          gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.08);
+        } catch (e) {}
+      }
+    }
+
+    // --- 2. Game State & Penalties Data ---
+    const penalties = [
+      "🦁 模仿一種得意動物嘅叫聲同動作！",
+      "🤪 做個全場最得意嘅搞笑鬼臉 5 秒鐘！",
+      "🎤 唱半首最鍾意嘅兒歌！",
+      "💃 跳 10 秒鐘即興搞笑機械人舞！",
+      "🐱 雙手放頭扮貓咪叫「喵喵喵」！",
+      "🏃‍♂️ 原地快速踏步並大叫 5 聲「我好快」！",
+      "⭐ 大聲讚身邊兩位朋友好叻好醒目！",
+      "✈️ 張開雙臂學飛機繞場轉一個小圈！",
+      "🐸 扮青蛙跳 3 下並叫「屈屈屈」！"
+    ];
+
+    const presets = {
+      quick: { min: 8, max: 18, label: "刺激快 (8 - 18秒)" },
+      normal: { min: 15, max: 35, label: "一般 (15 - 35秒)" },
+      long: { min: 30, max: 55, label: "悠閒長 (30 - 55秒)" }
+    };
+
+    let currentPreset = 'normal';
+    let gameState = 'idle'; // 'idle' | 'playing' | 'exploded'
+    let countdownTimeout = null;
+    const sound = new SoundFX();
+
+    // DOM Elements
+    const mainContainer = document.getElementById('mainContainer');
+    const bombVisual = document.getElementById('bombVisual');
+    const bombSphere = document.getElementById('bombSphere');
+    const fuseContainer = document.getElementById('fuseContainer');
+    const bombFace = document.getElementById('bombFace');
+    const mouth = document.getElementById('mouth');
+    const explosionVisual = document.getElementById('explosionVisual');
+    const statusBadge = document.getElementById('statusBadge');
+    const subHint = document.getElementById('subHint');
+    const primaryBtn = document.getElementById('primaryBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const penaltyCard = document.getElementById('penaltyCard');
+    const penaltyText = document.getElementById('penaltyText');
+    const rerollPenaltyBtn = document.getElementById('rerollPenaltyBtn');
+    const soundToggleBtn = document.getElementById('soundToggleBtn');
+    const rulesBtn = document.getElementById('rulesBtn');
+    const rulesModal = document.getElementById('rulesModal');
+    const closeRulesBtn = document.getElementById('closeRulesBtn');
+    const presetLabel = document.getElementById('presetLabel');
+    const presetControls = document.getElementById('presetControls');
+    const modeButtons = document.querySelectorAll('.mode-btn');
+
+    // --- 3. Preset Selection Logic ---
+    modeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (gameState === 'playing') return;
+        sound.init();
+        sound.playChirp();
+        const mode = btn.dataset.mode;
+        currentPreset = mode;
+        presetLabel.textContent = presets[mode].label;
+
+        modeButtons.forEach(b => {
+          b.className = "mode-btn bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold py-2 rounded-xl text-xs sm:text-sm transition-all border-2 border-transparent";
+        });
+        btn.className = "mode-btn bg-amber-500 text-white font-black py-2 rounded-xl text-xs sm:text-sm shadow transition-all border-2 border-amber-600";
+      });
+    });
+
+    // --- 4. Game Loop & States ---
+    function getRandomTime() {
+      const config = presets[currentPreset];
+      const seconds = Math.floor(Math.random() * (config.max - config.min + 1)) + config.min;
+      return seconds * 1000;
+    }
+
+    function getRandomPenalty() {
+      const idx = Math.floor(Math.random() * penalties.length);
+      return penalties[idx];
+    }
+
+    function startGame() {
+      sound.init();
+      gameState = 'playing';
+
+      // Visual updates
+      bombVisual.classList.remove('hidden');
+      bombVisual.classList.add('pulse-rhythm');
+      explosionVisual.classList.add('hidden');
+      fuseContainer.classList.remove('hidden');
+      penaltyCard.classList.add('hidden');
+      
+      // Face nervous look
+      mouth.style.width = '14px';
+      mouth.style.height = '14px';
+      mouth.style.borderRadius = '50%';
+      mouth.style.backgroundColor = '#ffffff';
+
+      // Badge
+      statusBadge.textContent = "🔥 快啲傳！音樂響緊呀！";
+      statusBadge.className = "inline-block px-5 py-2 rounded-full font-black text-lg sm:text-xl shadow-md bg-rose-500 text-white border-2 border-white animate-pulse";
+      subHint.textContent = "🤫 唔好等！時間隨機，唔知幾時會爆㗎！";
+
+      // Buttons
+      primaryBtn.innerHTML = `<span>⏳ 傳緊波中... (點擊緊急暫停)</span>`;
+      primaryBtn.className = "flex-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-black text-lg sm:text-xl py-4 rounded-2xl shadow-lg border-b-4 border-amber-800 transition-all flex items-center justify-center space-x-2";
+      resetBtn.classList.remove('hidden');
+
+      // Start Synthesized Cartoon Music
+      sound.startMusic();
+
+      // Schedule random explosion
+      const duration = getRandomTime();
+      countdownTimeout = setTimeout(() => {
+        triggerExplosion();
+      }, duration);
+    }
+
+    function triggerExplosion() {
+      gameState = 'exploded';
+      sound.stopMusic();
+      sound.playExplosion();
+
+      // Screen shake effect
+      mainContainer.classList.add('shake-active');
+      setTimeout(() => {
+        mainContainer.classList.remove('shake-active');
+      }, 700);
+
+      // Visual Bomb explosion
+      bombVisual.classList.add('hidden');
+      bombVisual.classList.remove('pulse-rhythm');
+      fuseContainer.classList.add('hidden');
+      explosionVisual.classList.remove('hidden');
+
+      // Confetti burst
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 80,
+          spread: 80,
+          origin: { y: 0.6 }
+        });
+      }
+
+      // Status Badge
+      statusBadge.textContent = "💥 停！炸彈爆咗啦！";
+      statusBadge.className = "inline-block px-6 py-2.5 rounded-full font-black text-xl sm:text-2xl shadow-lg bg-red-600 text-white border-4 border-yellow-300 animate-bounce";
+      subHint.textContent = "👉 邊個手上拎住個波？快啲睇下有咩小懲罰！";
+
+      // Show penalty card
+      penaltyText.textContent = getRandomPenalty();
+      penaltyCard.classList.remove('hidden');
+
+      // Primary Button ready for next round
+      primaryBtn.innerHTML = `<span>🔁 再玩一鋪！</span>`;
+      primaryBtn.className = "flex-1 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 active:scale-95 text-white font-black text-xl sm:text-2xl py-4 rounded-2xl shadow-lg border-b-4 border-green-800 transition-all flex items-center justify-center space-x-2";
+    }
+
+    function resetToIdle() {
+      if (countdownTimeout) {
+        clearTimeout(countdownTimeout);
+        countdownTimeout = null;
+      }
+      sound.stopMusic();
+      gameState = 'idle';
+
+      // Reset visuals
+      bombVisual.classList.remove('hidden', 'pulse-rhythm');
+      explosionVisual.classList.add('hidden');
+      fuseContainer.classList.add('hidden');
+      penaltyCard.classList.add('hidden');
+
+      // Happy bomb face
+      mouth.style.width = '24px';
+      mouth.style.height = '12px';
+      mouth.style.borderRadius = '0 0 100px 100px';
+      mouth.style.backgroundColor = 'transparent';
+
+      statusBadge.textContent = "準備好未？點擊開始傳波！";
+      statusBadge.className = "inline-block px-5 py-2 rounded-full font-black text-lg sm:text-xl shadow-md bg-white text-slate-800 border-2 border-amber-300";
+      subHint.textContent = "⏰ 倒數時間隨機保密！音樂一停，炸彈就爆！";
+
+      primaryBtn.innerHTML = `<span>🚀 開始遊戲！</span>`;
+      primaryBtn.className = "flex-1 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 active:scale-95 text-white font-black text-xl sm:text-2xl py-4 rounded-2xl shadow-lg border-b-4 border-green-800 transition-all flex items-center justify-center space-x-2";
+      resetBtn.classList.add('hidden');
+    }
+
+    // --- 5. Event Listeners ---
+    primaryBtn.addEventListener('click', () => {
+      if (gameState === 'idle') {
+        startGame();
+      } else if (gameState === 'playing') {
+        // Allow pausing or early stopping
+        resetToIdle();
+      } else if (gameState === 'exploded') {
+        startGame();
+      }
+    });
+
+    resetBtn.addEventListener('click', () => {
+      sound.playChirp();
+      resetToIdle();
+    });
+
+    rerollPenaltyBtn.addEventListener('click', () => {
+      sound.playChirp();
+      penaltyText.textContent = getRandomPenalty();
+    });
+
+    // Sound Toggle
+    soundToggleBtn.addEventListener('click', () => {
+      sound.init();
+      sound.isMuted = !sound.isMuted;
+      soundToggleBtn.textContent = sound.isMuted ? '🔇' : '🔊';
+      if (sound.isMuted) {
+        sound.stopMusic();
+      } else if (gameState === 'playing') {
+        sound.startMusic();
+      }
+    });
+
+    // Rules Modal
+    rulesBtn.addEventListener('click', () => {
+      sound.init();
+      sound.playChirp();
+      rulesModal.classList.remove('hidden');
+    });
+
+    closeRulesBtn.addEventListener('click', () => {
+      sound.playChirp();
+      rulesModal.classList.add('hidden');
+    });
+
+    rulesModal.addEventListener('click', (e) => {
+      if (e.target === rulesModal) {
+        rulesModal.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
